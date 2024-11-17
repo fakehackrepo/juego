@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Juego de Disparos</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      background: url('https://i.ibb.co/DKT0G7T/fondo.png') no-repeat center center/cover;
+    }
+    #game-over, #play-button, #level-info {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+    #game-over {
+      font-size: 48px;
+      color: red;
+      text-shadow: 2px 2px 4px black;
+      display: none;
+    }
+    #play-button {
+      font-size: 24px;
+      padding: 10px 20px;
+      background-color: green;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #play-button:hover {
+      background-color: darkgreen;
+    }
+    #level-info {
+    font-size: 60px;
+    color: darkgreen;
+    display: none;
+    border: 3px solid black;
+    padding: 10px;
+    border-radius: 10px;
+    background-color: rgba(0, 0, 0, 0);
+  }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div id="game-over">GAME OVER</div>
+  <button id="play-button">Play</button>
+  <div id="level-info"></div>
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const playerImg = new Image();
+    playerImg.src = "https://i.ibb.co/sFsPhHX/jugador.png";
+
+    const bulletImg = new Image();
+    bulletImg.src = "https://i.ibb.co/g9mDWwf/disparo.png";
+
+    const fallingImg = new Image();
+    fallingImg.src = "https://i.ibb.co/870pWQ4/objeto.png";
+
+    const heartImg = new Image();
+    heartImg.src = "https://i.ibb.co/wwFpLWp/vidaa.png";
+
+    const player = {
+      x: canvas.width / 2 - 50,
+      y: canvas.height - 100,
+      width: 80,
+      height: 80,
+      speed: 12,
+      movingLeft: false,
+      movingRight: false,
+    };
+
+    const bullets = [];
+    const fallings = [];
+    const hearts = [];
+    let lives = 5;
+    let kills = 0;
+    let level = 1;
+    let incremento = 1;
+    let timeLeft = 30;
+    let gameLoop;
+    let levelTimer;
+    const gameOverDiv = document.getElementById("game-over");
+    const playButton = document.getElementById("play-button");
+    const levelInfo = document.getElementById("level-info");
+
+    // Spawn falling objects
+    function spawnFalling() {
+      const x = Math.random() * (canvas.width - 50);
+      const size = 50;
+      fallings.push({ x, y: -size, width: size, height: size, speed: 2 + level });
+    }
+
+    function spawnHeart() {
+      const x = Math.random() * (canvas.width - 50);
+      const size = 50;
+      hearts.push({ x, y: -size, width: size, height: size, speed: 3.5 });
+    }
+
+    setInterval(spawnFalling, 750);
+
+    setInterval(() => {
+      if (Math.random() < 0.2) spawnHeart();
+    }, 3000);
+
+    function autoShoot() {
+      bullets.push({
+        x: player.x + player.width / 2 - 10, // Adjust to shoot from the center
+        y: player.y,
+        width: 20,
+        height: 40,
+        speed: 12,
+      });
+    }
+
+    setInterval(autoShoot, 85);
+
+    function movePlayer() {
+      if (player.movingLeft && player.x > 0) player.x -= player.speed;
+      if (player.movingRight && player.x < canvas.width - player.width) player.x += player.speed;
+    }
+
+    function isColliding(a, b) {
+      return (
+        a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y
+      );
+    }
+
+    function update() {
+      movePlayer();
+
+      bullets.forEach((bullet, index) => {
+        bullet.y -= bullet.speed;
+        if (bullet.y + bullet.height < 0) bullets.splice(index, 1);
+      });
+
+      fallings.forEach((falling, index) => {
+        falling.y += falling.speed;
+        if (falling.y > canvas.height) {
+          fallings.splice(index, 1);
+          lives--;
+          if (lives <= 0) gameOver();
+        }
+
+        bullets.forEach((bullet, bulletIndex) => {
+          if (isColliding(bullet, falling)) {
+            fallings.splice(index, 1);
+            bullets.splice(bulletIndex, 1);
+            kills++;
+            checkLevelProgress();
+          }
+        });
+      });
+
+      hearts.forEach((heart, index) => {
+        heart.y += heart.speed;
+        if (heart.y > canvas.height) hearts.splice(index, 1);
+
+        bullets.forEach((bullet, bulletIndex) => {
+          if (isColliding(bullet, heart)) {
+            hearts.splice(index, 1);
+            bullets.splice(bulletIndex, 1);
+            lives++;
+          }
+        });
+      });
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
+
+      bullets.forEach((bullet) => {
+        ctx.drawImage(bulletImg, bullet.x, bullet.y, bullet.width, bullet.height);
+      });
+
+      fallings.forEach((falling) => {
+        ctx.drawImage(fallingImg, falling.x, falling.y, falling.width, falling.height);
+      });
+
+      hearts.forEach((heart) => {
+        ctx.drawImage(heartImg, heart.x, heart.y, heart.width, heart.height);
+      });
+
+      ctx.font = "25px Arial";
+      ctx.fillStyle = "white";
+      ctx.fillText(`Vidas: ${lives}`, 20, 40);
+      ctx.fillText(`Puntos: ${kills}`, 20, 70);
+      ctx.fillText(`Nivel: ${level}`, 20, 100);
+      ctx.fillText(`Tiempo: ${timeLeft}s`, 20, 130);
+    }
+
+    function checkLevelProgress() {
+      if (level === 1 && kills >= 10) nextLevel();
+      if (level === 2 && kills >= 70) nextLevel();
+      if (level === 3 && kills >= 60) nextLevel();
+      if (level === 4 && kills >= 50) nextLevel();
+      if (level === 5 && kills >= 40) nextLevel();
+      if (level === 6 && kills >= 30) nextLevel();
+      if (level === 7 && kills >= 20) gameOver(true);
+    }
+
+    function nextLevel() {
+      level++;
+      incremento += 3;
+      lives += incremento;
+      kills = 0;
+      timeLeft = 25;
+      levelInfo.textContent = `Nivel ${level}`;
+      levelInfo.style.display = "block";
+      setTimeout(() => {
+        levelInfo.style.display = "none";
+      }, 2100);
+    }
+
+    function nextLevel() {
+      level++;
+      incremento += 3;
+      lives += incremento;
+      kills = 0;
+      timeLeft = 30;
+      levelInfo.textContent = `Nivel ${level}`;
+      levelInfo.style.display = "block";
+      setTimeout(() => {
+        levelInfo.style.display = "none";
+      }, 1900);
+    }
+
+    function nextLevel() {
+      level++;
+      lives += incremento;
+      incremento += 2;
+      kills = 0;
+      timeLeft = 40;
+      levelInfo.textContent = `Nivel ${level}`;
+      levelInfo.style.display = "block";
+      setTimeout(() => {
+        levelInfo.style.display = "none";
+      }, 1700);
+    }
+ 
+    function nextLevel() {
+      level++;
+      lives += incremento;
+      incremento += 2;
+      kills = 0;
+      timeLeft = 50;
+      levelInfo.textContent = `Nivel ${level}`;
+      levelInfo.style.display = "block";
+      setTimeout(() => {
+        levelInfo.style.display = "none";
+      }, 1600);
+    }
+
+    function nextLevel() {
+      level++;
+      lives += incremento;
+      incremento += 1;
+      kills = 0;
+      timeLeft = 60;
+      levelInfo.textContent = `Nivel ${level}`;
+      levelInfo.style.display = "block";
+      setTimeout(() => {
+        levelInfo.style.display = "none";
+      }, 1400);
+    }
+
+    function nextLevel() {
+      level++;
+      incremento += 1;
+      lives += incremento;
+      kills = 0;
+      timeLeft = 70;
+      levelInfo.textContent = `Nivel ${level}`;
+      levelInfo.style.display = "block";
+      setTimeout(() => {
+        levelInfo.style.display = "none";
+      }, 1200);
+    }
+
+    function gameOver(win = false) {
+      clearInterval(gameLoop);
+      clearInterval(levelTimer);
+      gameOverDiv.textContent = win ? "¡Ganaste!" : "GAME OVER";
+      gameOverDiv.style.display = "block";
+      setTimeout(() => {
+        location.reload();
+      }, 4000);
+    }
+
+    function startGame() {
+      playButton.style.display = "none";
+      kills = 0;
+      lives = 5;
+      level = 1;
+      timeLeft = 80;
+      levelTimer = setInterval(() => {
+        timeLeft--;
+        if (timeLeft <= 0) gameOver();
+      }, 1000);
+      gameLoop = setInterval(() => {
+        update();
+        draw();
+      }, 850 / 60);
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "ArrowLeft") player.movingLeft = true;
+      if (e.code === "ArrowRight") player.movingRight = true;
+    });
+
+    window.addEventListener("keyup", (e) => {
+      if (e.code === "ArrowLeft") player.movingLeft = false;
+      if (e.code === "ArrowRight") player.movingRight = false;
+    });
+
+    playButton.addEventListener("click", startGame);
+  </script>
+</body>
+</html>
